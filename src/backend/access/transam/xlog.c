@@ -7411,11 +7411,10 @@ CheckPointReplicationState(void)
 	pgstat_write_statsfile();
 }
 
-
 /*
  * NEON:  we use logical records to persist information of about slots, origins, relation map...
  * If it is done inside shutdown checkpoint, then Postgres panics: "concurrent write-ahead log activity while database system is shutting down"
- * So it before checkpoint REDO position is determined.
+ * So do it before checkpoint REDO position is determined.
  */
 static void
 PreCheckPointGuts(int flags)
@@ -7423,7 +7422,6 @@ PreCheckPointGuts(int flags)
 	if (flags & CHECKPOINT_IS_SHUTDOWN)
 		CheckPointReplicationState();
 }
-
 
 /*
  * Flush all data in shared memory to disk, and fsync
