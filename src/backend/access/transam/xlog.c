@@ -7401,14 +7401,15 @@ CreateOverwriteContrecordRecord(XLogRecPtr aborted_lsn, XLogRecPtr pagePtr,
 }
 
 static void
-CheckPointReplicationState(void)
+CheckPointReplicationState(int flags)
 {
 	CheckPointRelationMap();
 	CheckPointReplicationSlots();
 	CheckPointSnapBuild();
 	CheckPointLogicalRewriteHeap();
 	CheckPointReplicationOrigin();
-	pgstat_write_statsfile();
+	if (flags & CHECKPOINT_IS_SHUTDOWN)
+		pgstat_write_statsfile();
 }
 
 /*
@@ -7420,7 +7421,7 @@ static void
 PreCheckPointGuts(int flags)
 {
 	if (flags & CHECKPOINT_IS_SHUTDOWN)
-		CheckPointReplicationState();
+		CheckPointReplicationState(flags);
 }
 
 /*
@@ -7433,7 +7434,7 @@ static void
 CheckPointGuts(XLogRecPtr checkPointRedo, int flags)
 {
 	if (!(flags & CHECKPOINT_IS_SHUTDOWN))
-		CheckPointReplicationState();
+		CheckPointReplicationState(flags);
 
 	/* Write out all dirty data in SLRUs and the main buffer pool */
 	TRACE_POSTGRESQL_BUFFER_CHECKPOINT_START(flags);
