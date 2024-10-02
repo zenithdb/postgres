@@ -7472,10 +7472,10 @@ CreateCheckPoint(int flags)
 	 */
 	SyncPreCheckpoint();
 
-	/*
-	 * NEON: perform checkpiont action requiring write to the WAL before we determine the REDO pointer.
-	 */
-	PreCheckPointGuts(flags);
+   /*
+    * NEON: perform checkpiont action requiring write to the WAL before we determine the REDO pointer.
+    */
+    PreCheckPointGuts(flags);
 
 	/*
 	 * Use a critical section to force system panic if we have trouble.
