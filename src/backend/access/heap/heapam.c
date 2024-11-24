@@ -636,7 +636,7 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 	/* Prefetch up to io_concurrency blocks ahead */
 	if (scan->rs_prefetch_maximum > 0 && scan->rs_nblocks > 1)
 	{
-		int64   block = scan->rs_cblock;
+		int64   block = BlockNumberIsValid(scan->rs_prefetch_block) ? scan->rs_prefetch_block : scan->rs_startblock;
 		int64	nblocks;
 		int64	rel_scan_start;
 		int64	rel_scan_end; /* blockno of end of scan (mod scan->rs_nblocks) */
