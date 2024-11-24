@@ -616,6 +616,7 @@ heap_prepare_pagescan(TableScanDesc sscan)
 static inline void
 heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 {
+	TableScanDesc sscan = &scan->rs_base;
 	Assert(scan->rs_read_stream);
 
 	/* release previous scan buffer, if any */
@@ -631,6 +632,104 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 	 * pages' worth of consecutive dead tuples.
 	 */
 	CHECK_FOR_INTERRUPTS();
+
+	/* Prefetch up to io_concurrency blocks ahead */
+	if (scan->rs_prefetch_maximum > 0 && scan->rs_nblocks > 1)
+	{
+		int64   block = scan->rs_cblock;
+		int64	nblocks;
+		int64	rel_scan_start;
+		int64	rel_scan_end; /* blockno of end of scan (mod scan->rs_nblocks) */
+		int64	scan_pageoff; /* page, but adjusted for scan position as above */
+
+		int64	prefetch_start; /* start block of prefetch requests this iteration */
+		int64	prefetch_end; /* end block of prefetch requests this iteration, if applicable */
+		ParallelBlockTableScanWorker pbscanwork = scan->rs_parallelworkerdata;
+		ParallelBlockTableScanDesc pbscandesc = (ParallelBlockTableScanDesc) sscan->rs_parallel;
+
+		/*
+		 * Parallel scans look like repeated sequential table scans for
+		 * prefetching; with a scan start at nalloc + ch_remaining - ch_size
+		 */
+		if (pbscanwork != NULL)
+		{
+			uint64	start_offset,
+					end_offset;
+
+			Assert(pbscandesc != NULL);
+			start_offset = pbscanwork->phsw_nallocated
+						   + pbscanwork->phsw_chunk_remaining + 1
+						   - pbscanwork->phsw_chunk_size;
+			end_offset = Min(pbscanwork->phsw_nallocated +
+							 pbscanwork->phsw_chunk_remaining + 1,
+							 pbscandesc->phs_nblocks);
+
+			rel_scan_start = (int64) (pbscandesc->phs_startblock) + start_offset;
+			rel_scan_end = (int64) (pbscandesc->phs_startblock) + end_offset;
+			nblocks = pbscandesc->phs_nblocks;
+		}
+		else
+		{
+			rel_scan_start = scan->rs_startblock;
+			rel_scan_end = scan->rs_startblock + scan->rs_nblocks;
+			nblocks = scan->rs_nblocks;
+		}
+
+		prefetch_end = rel_scan_end;
+
+		if (block < rel_scan_start)
+			scan_pageoff = block + nblocks;
+		else
+			scan_pageoff = block;
+
+		Assert(rel_scan_start <= scan_pageoff && scan_pageoff <= rel_scan_end);
+
+		/*
+		 * If this is the first page of this seqscan, initiate prefetch of
+		 * pages page..page + n. On each subsequent call, prefetch the next
+		 * page that we haven't prefetched yet, at page + n.
+		 * If this is the last page of the prefetch, 
+		 */
+		if (rel_scan_start != block)
+		{
+			prefetch_start = scan_pageoff + (int64) scan->rs_prefetch_target - 1;
+			prefetch_end = prefetch_start + 1;
+		}
+		else
+		{
+			prefetch_start = scan_pageoff;
+			prefetch_end = rel_scan_end;
+		}
+
+		/* do not prefetch if the only page we're trying to prefetch is past the end of our scan window */
+		if (prefetch_start > rel_scan_end)
+			prefetch_end = 0;
+
+		if (prefetch_end > prefetch_start + scan->rs_prefetch_target)
+			prefetch_end = prefetch_start + scan->rs_prefetch_target;
+
+		if (prefetch_end > rel_scan_end)
+			prefetch_end = rel_scan_end;
+
+		while (prefetch_start < prefetch_end)
+		{
+			BlockNumber blckno = (prefetch_start % nblocks);
+			Assert(blckno < nblocks);
+			Assert(blckno < INT_MAX);
+			PrefetchBuffer(scan->rs_base.rs_rd, MAIN_FORKNUM, blckno);
+			prefetch_start += 1;
+		}
+
+		/*
+		 * Use exponential growth of readahead up to prefetch_maximum, to
+		 * make sure that a low LIMIT does not result in high IO overhead,
+		 * but operations in general are still very fast.
+		 */
+		if (scan->rs_prefetch_target < scan->rs_prefetch_maximum / 2)
+			scan->rs_prefetch_target *= 2;
+		else if (scan->rs_prefetch_target < scan->rs_prefetch_maximum)
+			scan->rs_prefetch_target = scan->rs_prefetch_maximum;
+	}
 
 	/*
 	 * If the scan direction is changing, reset the prefetch block to the

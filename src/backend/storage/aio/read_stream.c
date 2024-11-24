@@ -136,9 +136,6 @@ struct ReadStream
 	BlockNumber pending_read_blocknum;
 	int16		pending_read_nblocks;
 
-	/* NEON: next block to prefetch */
-	BlockNumber prefetch_blocknum;
-
 	/* Space for buffers and optional per-buffer private data. */
 	size_t		per_buffer_data_size;
 	void	   *per_buffer_data;
@@ -238,16 +235,6 @@ read_stream_start_pending_read(ReadStream *stream, bool suppress_advice)
 	buffer_index = stream->next_buffer_index;
 	io_index = stream->next_io_index;
 	nblocks = stream->pending_read_nblocks;
-
-	for (int i = 0; i < stream->max_ios; i++)
-	{
-		if (stream->pending_read_blocknum + i >= stream->prefetch_blocknum)
-		{
-			PrefetchBuffer(stream->ios[io_index].op.rel, MAIN_FORKNUM, stream->pending_read_blocknum + i);
-			stream->prefetch_blocknum = stream->pending_read_blocknum + i + 1;
-		}
-	}
-
 	need_wait = StartReadBuffers(&stream->ios[io_index].op,
 								 &stream->buffers[buffer_index],
 								 stream->pending_read_blocknum,
@@ -506,7 +493,6 @@ read_stream_begin_relation(int flags,
 		max_ios = 1;
 
 	stream->max_ios = max_ios;
-	stream->prefetch_blocknum = 0;
 	stream->per_buffer_data_size = per_buffer_data_size;
 	stream->max_pinned_buffers = max_pinned_buffers;
 	stream->queue_size = queue_size;
@@ -587,14 +573,6 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
 
 		if (likely(next_blocknum != InvalidBlockNumber))
 		{
-			for (int i = 0; i < stream->max_ios; i++)
-			{
-				if (next_blocknum + i >= stream->prefetch_blocknum)
-				{
-					PrefetchBuffer(stream->ios[0].op.rel, MAIN_FORKNUM, stream->pending_read_blocknum + i);
-					stream->prefetch_blocknum = next_blocknum + i + 1;
-				}
-			}
 			/*
 			 * Pin a buffer for the next call.  Same buffer entry, and
 			 * arbitrary I/O entry (they're all free).  We don't have to
