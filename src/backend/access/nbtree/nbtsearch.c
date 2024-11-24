@@ -884,9 +884,10 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		{
 			ItemId itemid = PageGetItemId(page, offnum + i);
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
-			if (i == next_parent_prefetch_index)
+			if (j == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
- 			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
+			if (BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
+				so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
 	else
@@ -898,9 +899,10 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		{
 			ItemId itemid = PageGetItemId(page, offnum + n_child - i - 1);
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
-			if (i == next_parent_prefetch_index)
+			if (j == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
-			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
+			if (BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
+				so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
 	so->n_prefetch_blocks = j;
