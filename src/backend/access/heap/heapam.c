@@ -678,11 +678,12 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 		prefetch_end = rel_scan_end;
 
 		if (block < rel_scan_start)
-			scan_pageoff = rel_scan_start;
+			scan_pageoff = block + nblocks;
 		else
 			scan_pageoff = block;
 
-		Assert(rel_scan_start <= scan_pageoff && scan_pageoff <= rel_scan_end);
+		if (!(rel_scan_start <= scan_pageoff && scan_pageoff <= rel_scan_end))
+			goto skip_prefetch;
 
 		/*
 		 * If this is the first page of this seqscan, initiate prefetch of
@@ -730,6 +731,7 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 		else if (scan->rs_prefetch_target < scan->rs_prefetch_maximum)
 			scan->rs_prefetch_target = scan->rs_prefetch_maximum;
 	}
+  skip_prefetch:
 
 	/*
 	 * If the scan direction is changing, reset the prefetch block to the
