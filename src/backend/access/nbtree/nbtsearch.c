@@ -1499,12 +1499,14 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 		int skip = ScanDirectionIsForward(dir)
 			? stack->bts_offset - first_offset
 			: first_offset + so->n_prefetch_blocks - 1 - stack->bts_offset;
-		Assert(so->n_prefetch_blocks >= skip);
-		so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
-		so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - skip);
-		so->last_prefetch_index = skip + so->n_prefetch_requests;
-		for (int j = skip; j < so->last_prefetch_index; j++)
-			PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
+		if (so->n_prefetch_blocks >= skip)
+		{
+			so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
+			so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - skip);
+			so->last_prefetch_index = skip + so->n_prefetch_requests;
+			for (int j = skip; j < so->last_prefetch_index; j++)
+				PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
+		}
 	}
 
 	/* don't need to keep the stack around... */
