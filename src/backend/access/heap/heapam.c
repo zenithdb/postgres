@@ -678,7 +678,7 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 		prefetch_end = rel_scan_end;
 
 		if (block < rel_scan_start)
-			scan_pageoff = block + nblocks;
+			scan_pageoff = rel_scan_start;
 		else
 			scan_pageoff = block;
 
