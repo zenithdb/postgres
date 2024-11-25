@@ -1499,6 +1499,7 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 		int skip = ScanDirectionIsForward(dir)
 			? stack->bts_offset - first_offset
 			: first_offset + so->n_prefetch_blocks - 1 - stack->bts_offset;
+		/* n_prefetch_blocks can be smaller than skip because of skipped invalid downlinks */
 		if (so->n_prefetch_blocks >= skip)
 		{
 			so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
