@@ -848,9 +848,8 @@ _bt_compare(Relation rel,
 
 /*
  * _bt_read_parent_for_prefetch - read parent page and extract references to children for prefetch.
- * This functions returns offset of first item.
  */
-static int
+static void
 _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirection dir)
 {
 	Relation rel = scan->indexRelation;
@@ -888,8 +887,6 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
 			if (i == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
-			if (!BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
-				elog(FATAL, "Downlink %d is invalid for forward scan n_child=%d", i, n_child);
  			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
@@ -906,15 +903,12 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
 			if (i == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
-			if (!BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
-				elog(FATAL, "Downlink %d is invalid for backward scan n_child=%d", i, n_child);
 			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
 	so->n_prefetch_blocks = j;
 	so->last_prefetch_index = 0;
 	_bt_relbuf(rel, buf);
-	return offnum;
 }
 
 /*
@@ -1478,24 +1472,32 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 	stack = _bt_search(rel, &inskey, &buf, BT_READ, scan->xs_snapshot);
 
 	/* Start prefetching for index only scan */
-	if (so->prefetch_maximum > 0 && stack != NULL && scan->xs_want_itup) /* index only scan */
+	if (so->prefetch_maximum > 0 && stack != NULL && BufferIsValid(buf) && scan->xs_want_itup) /* index only scan */
 	{
-		int first_offset = _bt_read_parent_for_prefetch(scan, stack->bts_blkno, dir);
-		int skip = ScanDirectionIsForward(dir)
-			? stack->bts_offset - first_offset
-			: first_offset + so->n_prefetch_blocks - 1 - stack->bts_offset;
-		if (skip < 0)
-			elog(FATAL, "Forward=%d, bts_oiffset-%d, first_offset=%d, n_prefetch_blocks=%d", ScanDirectionIsForward(dir), stack->bts_offset, first_offset, so->n_prefetch_blocks);
-		Assert(so->n_prefetch_blocks >= skip);
-		so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
-		so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - skip);
-		so->last_prefetch_index = skip + so->n_prefetch_requests;
-		if (so->last_prefetch_index > so->n_prefetch_blocks)
-			elog(FATAL, "last_prefetch_index-%d, n_prefetch_blocks=%d",
-				 so->last_prefetch_index, so->n_prefetch_blocks);
-		Assert(so->last_prefetch_index <= so->n_prefetch_blocks);
-		for (int j = skip; j < so->last_prefetch_index; j++)
-			PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
+		BlockNumber leaf = BufferGetBlockNumber(buf);
+
+		_bt_read_parent_for_prefetch(scan, stack->bts_blkno, dir);
+
+        /*
+		 * We can not use stack->bts_offset because once parent page is unlocked, it can be updated and state captured by
+		 * by _bt_read_parent_for_prefetch may not match with _bt_search
+		 */
+
+		for (int j = 0; j < so->n_prefetch_blocks; j++)
+		{
+			if (so->prefetch_blocks[j] == leaf)
+			{
+				so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
+				so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - j);
+				so->last_prefetch_index = j + so->n_prefetch_requests;
+
+				do {
+					PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
+				} while (++j < so->last_prefetch_index);
+
+				break;
+			}
+		}
 	}
 
 	/* don't need to keep the stack around... */
