@@ -886,14 +886,17 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		so->next_parent = opaque->btpo_next;
 		if (so->next_parent == P_NONE)
 			next_parent_prefetch_index = -1;
+		else if (!BlockNumberIsValid(so->next_parent))
+			elog(FATAL, "btpo_next is invalid");
 		for (i = 0, j = 0; i < n_child; i++)
 		{
 			ItemId itemid = PageGetItemId(page, offnum + i);
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
-			if (j == next_parent_prefetch_index)
+			if (i == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
-			if (BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
-				so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
+			if (!BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
+				elog(FATAL, "Downlink %d is invalid for forward scan n_child=%d", i, n_child);
+ 			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
 	else
@@ -901,14 +904,17 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		so->next_parent = opaque->btpo_prev;
 		if (so->next_parent == P_NONE)
 			next_parent_prefetch_index = -1;
-		for (i = 0, j = 0; i < n_child; i++)
+		else if (!BlockNumberIsValid(so->next_parent))
+			elog(FATAL, "btpo_prev is invalid");
+  		for (i = 0, j = 0; i < n_child; i++)
 		{
 			ItemId itemid = PageGetItemId(page, offnum + n_child - i - 1);
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
-			if (j == next_parent_prefetch_index)
+			if (i == next_parent_prefetch_index)
 				so->prefetch_blocks[j++] = so->next_parent; /* time to prefetch next parent page */
-			if (BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
-				so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
+			if (!BlockNumberIsValid(BTreeTupleGetDownLink(itup)))
+				elog(FATAL, "Downlink %d is invalid for backward scan n_child=%d", i, n_child);
+			so->prefetch_blocks[j++] = BTreeTupleGetDownLink(itup);
 		}
 	}
 	so->n_prefetch_blocks = j;
@@ -1484,15 +1490,18 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 		int skip = ScanDirectionIsForward(dir)
 			? stack->bts_offset - first_offset
 			: first_offset + so->n_prefetch_blocks - 1 - stack->bts_offset;
-		/* n_prefetch_blocks can be smaller than skip because of skipped invalid downlinks */
-		if (so->n_prefetch_blocks >= skip)
-		{
-			so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
-			so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - skip);
-			so->last_prefetch_index = skip + so->n_prefetch_requests;
-			for (int j = skip; j < so->last_prefetch_index; j++)
-				PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
-		}
+		if (skip < 0)
+			elog(FATAL, "Forward=%d, bts_oiffset-%d, first_offset=%d, n_prefetch_blocks=%d", ScanDirectionIsForward(dir), stack->bts_offset, first_offset, so->n_prefetch_blocks);
+		Assert(so->n_prefetch_blocks >= skip);
+		so->current_prefetch_distance = INCREASE_PREFETCH_DISTANCE_STEP;
+		so->n_prefetch_requests = Min(so->current_prefetch_distance, so->n_prefetch_blocks - skip);
+		so->last_prefetch_index = skip + so->n_prefetch_requests;
+		if (so->last_prefetch_index > so->n_prefetch_blocks)
+			elog(FATAL, "last_prefetch_index-%d, n_prefetch_blocks=%d",
+				 so->last_prefetch_index, so->n_prefetch_blocks);
+		Assert(so->last_prefetch_index <= so->n_prefetch_blocks);
+		for (int j = skip; j < so->last_prefetch_index; j++)
+			PrefetchBuffer(rel, MAIN_FORKNUM, so->prefetch_blocks[j]);
 	}
 
 	/* don't need to keep the stack around... */
