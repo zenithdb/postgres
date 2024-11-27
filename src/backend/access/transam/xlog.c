@@ -335,7 +335,7 @@ static TimestampTz recoveryTargetTime;
 const char *recoveryTargetName;
 XLogRecPtr	recoveryTargetLSN;
 int			recovery_min_apply_delay = 0;
-bool        recoveryPauseOnMisconfig;
+bool		allowReplicaMisconfig = false;
 
 /* options formerly taken from recovery.conf for XLOG streaming */
 bool		StandbyModeRequested = false;
@@ -6598,8 +6598,11 @@ RecoveryRequiresIntParameter(const char *param_name, int currValue, int minValue
 							   currValue,
 							   minValue)));
 
-			if (!recoveryPauseOnMisconfig)
+			if (!allowReplicaMisconfig)
+			{
+				/* Сontinue replication even though it can cause problerms later */
 				return;
+			}
 
 			SetRecoveryPause(true);
 
@@ -6649,7 +6652,17 @@ RecoveryRequiresIntParameter(const char *param_name, int currValue, int minValue
 			ConditionVariableCancelSleep();
 		}
 
-		ereport(recoveryPauseOnMisconfig ? FATAL : WARNING,
+		if (allowReplicaMisconfig)
+			ereport(WARNING,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("Insufficient parameter settings can cause problems during recovery"),
+		/* Repeat the detail from above so it's easy to find in the log. */
+					 errdetail("%s = %d is a lower setting than on the primary server, where its value was %d.",
+							   param_name,
+							   currValue,
+							   minValue)));
+		else
+			ereport(FATAL,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("recovery aborted because of insufficient parameter settings"),
 		/* Repeat the detail from above so it's easy to find in the log. */
