@@ -105,6 +105,11 @@ void
 wallog_file_descriptor(char const* path, int fd, uint64_t limit)
 {
 	char	prefix[MAXPGPATH];
+
+	/* Do not wallog AUX file at replica */
+	if (!XLogInsertAllowed())
+		return;
+
 	snprintf(prefix, sizeof(prefix), "neon-file:%s", path);
 	if (fd < 0)
 	{
