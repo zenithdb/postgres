@@ -147,7 +147,7 @@ wallog_file(char const* path, uint64_t limit)
 	{
 		ereport(LOG,
 				(errcode_for_file_access(),
-				 errmsg("could not create file \"%s\": %m", path)));
+				 errmsg("could not open file \"%s\": %m", path)));
 	}
 	else
 	{
