@@ -99,7 +99,7 @@ logicalmsg_redo(XLogReaderState *record)
 
 /*
  * NEON: persist file in WAL to save it in persistent storage.
- * If fd < 0, then remote entry from page server.
+ * If fd < 0, then remove entry from page server.
  */
 void
 wallog_file_descriptor(char const* path, int fd, uint64_t limit)
