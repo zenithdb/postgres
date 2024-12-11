@@ -1138,8 +1138,6 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
 				 errmsg("could not fsync file \"%s\": %m", path)));
 	pgstat_report_wait_end();
 
-	wallog_file_descriptor(path, fd, -1);
-
 	if (CloseTransientFile(fd) != 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -1217,7 +1215,7 @@ CheckPointLogicalRewriteHeap(void)
 				ereport(ERROR,
 						(errcode_for_file_access(),
 						 errmsg("could not remove file \"%s\": %m", path)));
-			wallog_file_descriptor(path, -1, -1);
+			wallog_file_removal(path);
 		}
 		else
 		{

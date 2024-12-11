@@ -35,6 +35,7 @@ extern XLogRecPtr LogLogicalMessage(const char *prefix, const char *message,
 
 extern void wallog_file(char const* path, uint64_t limit);
 extern void wallog_file_descriptor(char const* path, int fd, uint64_t limit);
+extern void wallog_file_removal(char const* path);
 
 /* RMGR API */
 #define XLOG_LOGICAL_MESSAGE	0x00

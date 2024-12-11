@@ -98,11 +98,10 @@ logicalmsg_redo(XLogReaderState *record)
 }
 
 /*
- * NEON: persist file in WAL to save it in persistent storage.
- * If fd < 0, then remove entry from page server.
+ * NEON: remove AUX object
  */
 void
-wallog_file_descriptor(char const* path, int fd, uint64_t limit)
+wallog_file_removal(char const* path)
 {
 	char	prefix[MAXPGPATH];
 
@@ -111,31 +110,52 @@ wallog_file_descriptor(char const* path, int fd, uint64_t limit)
 		return;
 
 	snprintf(prefix, sizeof(prefix), "neon-file:%s", path);
-	if (fd < 0)
+	elog(DEBUG1, "neon: deleting contents of file %s", path);
+
+	/* unlink file */
+	LogLogicalMessage(prefix, NULL, 0, false, true);
+}
+
+/*
+ * NEON: persist file in WAL to save it in persistent storage.
+ * This funcion changes current position in the file, so caller should be aware of it.
+ */
+void
+wallog_file_descriptor(char const* path, int fd, uint64_t limit)
+{
+	char	prefix[MAXPGPATH];
+	off_t	size;
+
+	Assert(fd >= 0);
+
+	/* Do not wallog AUX file at replica */
+	if (!XLogInsertAllowed())
+		return;
+
+	size = lseek(fd, 0, SEEK_END);
+	elog(DEBUG1, "neon: writing contents of file %s, size %ld", path, (long)size);
+	if (size < 0)
+		elog(ERROR, "Failed to get size of file %s: %m", path);
+
+	if ((uint64_t)size > limit)
 	{
-		elog(DEBUG1, "neon: deleting contents of file %s", path);
-		/* unlink file */
-		LogLogicalMessage(prefix, NULL, 0, false, true);
+		elog(WARNING, "Size of file %s %ld is larger than limit %ld", path, (long)size, (long)limit);
+		wallog_file_removal(path);
 	}
 	else
 	{
-		off_t size = lseek(fd, 0, SEEK_END);
-		elog(DEBUG1, "neon: writing contents of file %s, size %ld", path, (long)size);
-		if (size < 0)
-			elog(ERROR, "Failed to get size of file %s: %m", path);
-		if ((uint64_t)size > limit)
-		{
-			elog(WARNING, "Size of file %s %ld is larger than limit %ld", path, (long)size, (long)limit);
-		}
-		else
-		{
-			char* buf = palloc((size_t)size);
-			lseek(fd, 0, SEEK_SET);
-			if (read(fd, buf, (size_t)size) != size)
+		char* buf = palloc((size_t)size);
+		size_t offs = 0;
+		lseek(fd, 0, SEEK_SET);
+		while (offs < size) {
+			ssize_t rc = read(fd, buf + offs, (size_t)size - offs);
+			if (rc <= 0)
 				elog(ERROR, "Failed to read file %s: %m", path);
-			LogLogicalMessage(prefix, buf, (size_t)size, false, true);
-			pfree(buf);
+			offs += rc;
 		}
+		snprintf(prefix, sizeof(prefix), "neon-file:%s", path);
+		LogLogicalMessage(prefix, buf, (size_t)size, false, true);
+		pfree(buf);
 	}
 }
 
