@@ -885,8 +885,7 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		so->next_parent = opaque->btpo_next;
 		if (so->next_parent == P_NONE)
 			next_parent_prefetch_index = -1;
-		else if (!BlockNumberIsValid(so->next_parent))
-			elog(FATAL, "btpo_next is invalid");
+
 		for (i = 0, j = 0; i < n_child; i++)
 		{
 			ItemId itemid = PageGetItemId(page, offnum + i);
@@ -901,9 +900,8 @@ _bt_read_parent_for_prefetch(IndexScanDesc scan, BlockNumber parent, ScanDirecti
 		so->next_parent = opaque->btpo_prev;
 		if (so->next_parent == P_NONE)
 			next_parent_prefetch_index = -1;
-		else if (!BlockNumberIsValid(so->next_parent))
-			elog(FATAL, "btpo_prev is invalid");
-  		for (i = 0, j = 0; i < n_child; i++)
+
+		for (i = 0, j = 0; i < n_child; i++)
 		{
 			ItemId itemid = PageGetItemId(page, offnum + n_child - i - 1);
 			IndexTuple itup = (IndexTuple) PageGetItem(page, itemid);
@@ -1478,7 +1476,7 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 	stack = _bt_search(rel, NULL, &inskey, &buf, BT_READ, scan->xs_snapshot);
 
 	/* Start prefetching for index only scan */
-	if (so->prefetch_maximum > 0 && stack != NULL && BufferIsValid(buf) && scan->xs_want_itup) /* index only scan */
+	if (so->prefetch_maximum > 0 && stack != NULL && scan->xs_want_itup) /* index only scan */
 	{
 		BlockNumber leaf = BufferGetBlockNumber(buf);
 
