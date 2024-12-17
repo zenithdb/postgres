@@ -118,7 +118,7 @@ wallog_file_removal(char const* path)
 
 /*
  * NEON: persist file in WAL to save it in persistent storage.
- * This funcion changes current position in the file, so caller should be aware of it.
+ * This function changes current position in the file, so caller should be aware of it.
  */
 void
 wallog_file_descriptor(char const* path, int fd, uint64_t limit)
