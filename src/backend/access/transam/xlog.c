@@ -7401,15 +7401,13 @@ CreateOverwriteContrecordRecord(XLogRecPtr aborted_lsn, XLogRecPtr pagePtr,
 }
 
 static void
-CheckPointReplicationState(int flags)
+CheckPointReplicationState()
 {
 	CheckPointRelationMap();
 	CheckPointReplicationSlots();
 	CheckPointSnapBuild();
 	CheckPointLogicalRewriteHeap();
 	CheckPointReplicationOrigin();
-	if (flags & CHECKPOINT_IS_SHUTDOWN)
-		pgstat_write_statsfile();
 }
 
 /*
@@ -7421,7 +7419,10 @@ static void
 PreCheckPointGuts(int flags)
 {
 	if (flags & CHECKPOINT_IS_SHUTDOWN)
-		CheckPointReplicationState(flags);
+	{
+		CheckPointReplicationState();
+		pgstat_write_statsfile();
+	}
 }
 
 /*
