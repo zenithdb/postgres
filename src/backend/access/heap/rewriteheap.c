@@ -921,7 +921,7 @@ logical_heap_rewrite_flush_mappings(RewriteState state)
 					 errmsg("could not write to file \"%s\", wrote %d of %d: %m", src->path,
 							written, len)));
 		src->off += len;
-		wallog_file_descriptor(src->path, FileGetRawDesc(src->vfd), -1);
+		wallog_file_descriptor(src->path, FileGetRawDesc(src->vfd), PG_UINT64_MAX);
 
 		XLogBeginInsert();
 		XLogRegisterData((char *) (&xlrec), sizeof(xlrec));
