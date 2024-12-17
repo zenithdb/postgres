@@ -8063,7 +8063,10 @@ static void
 PreCheckPointGuts(int flags)
 {
 	if (flags & CHECKPOINT_IS_SHUTDOWN)
+	{
 		CheckPointReplicationState(flags);
+		pgstat_write_statsfile();
+	}
 }
 
 /*
