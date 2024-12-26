@@ -1644,6 +1644,17 @@ struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 
+	{
+		{
+			"disable_logical_replication_subscribers" , PGC_SIGHUP, REPLICATION_SUBSCRIBERS,
+			gettext_noop("Disables incomming logical replication."),
+			NULL
+		},
+		&disable_logical_replication_subscribers,
+		false,
+		NULL, NULL, NULL
+	},
+
 	/*
 	 * WITH OIDS support, and consequently default_with_oids, was removed in
 	 * PostgreSQL 12, but we tolerate the parameter being set to false to

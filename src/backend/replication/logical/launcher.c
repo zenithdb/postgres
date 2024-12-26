@@ -51,6 +51,8 @@ int			max_logical_replication_workers = 4;
 int			max_sync_workers_per_subscription = 2;
 int			max_parallel_apply_workers_per_subscription = 2;
 
+bool disable_logical_replication_subscribers = false;
+
 LogicalRepWorker *MyLogicalRepWorker = NULL;
 
 typedef struct LogicalRepCtxStruct
@@ -333,6 +335,10 @@ logicalrep_worker_launch(LogicalRepWorkerType wtype,
 				(errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
 				 errmsg("cannot start logical replication workers when max_replication_slots = 0")));
 
+	if (disable_logical_replication_subscribers)
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("cannot start logical replication workers when logical replication is disabled")));
 	/*
 	 * We need to do the modification of the shared memory under lock so that
 	 * we have consistent view.
