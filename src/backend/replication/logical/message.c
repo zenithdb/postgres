@@ -32,6 +32,7 @@
 #include "postgres.h"
 
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "access/xact.h"
 #include "access/xloginsert.h"
