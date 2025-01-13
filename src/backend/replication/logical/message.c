@@ -118,13 +118,13 @@ wallog_file_removal(char const* path)
 
 /*
  * NEON: persist file in WAL to save it in persistent storage.
- * This function changes current position in the file, so caller should be aware of it.
  */
 void
 wallog_file_descriptor(char const* path, int fd, uint64_t limit)
 {
 	char	prefix[MAXPGPATH];
 	off_t	size;
+	struct stat stat;
 
 	Assert(fd >= 0);
 
@@ -132,7 +132,12 @@ wallog_file_descriptor(char const* path, int fd, uint64_t limit)
 	if (!XLogInsertAllowed())
 		return;
 
-	size = lseek(fd, 0, SEEK_END);
+	if (fstat(fd, &stat))
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not stat file \"%s\": %m", path)));
+	size = stat.st_size;
+
 	elog(DEBUG1, "neon: writing contents of file %s, size %ld", path, (long)size);
 	if (size < 0)
 		elog(ERROR, "Failed to get size of file %s: %m", path);
@@ -146,9 +151,8 @@ wallog_file_descriptor(char const* path, int fd, uint64_t limit)
 	{
 		char* buf = palloc((size_t)size);
 		size_t offs = 0;
-		lseek(fd, 0, SEEK_SET);
 		while (offs < size) {
-			ssize_t rc = read(fd, buf + offs, (size_t)size - offs);
+			ssize_t rc = pread(fd, buf + offs, (size_t)size - offs, offs);
 			if (rc <= 0)
 				elog(ERROR, "Failed to read file %s: %m", path);
 			offs += rc;
