@@ -3657,7 +3657,7 @@ struct config_int ConfigureNamesInt[] =
 			GUC_UNIT_KB
 		},
 		&neon_pgstat_file_size_limit,
-		1024, 0, 1000000,
+		8192, 0, 1000000,
 		NULL, NULL, NULL
 	},
 
