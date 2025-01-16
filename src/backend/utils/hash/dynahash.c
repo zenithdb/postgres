@@ -1108,7 +1108,8 @@ hash_search_with_hash_value(HTAB *hashp,
 				else
 					ereport(ERROR,
 							(errcode(ERRCODE_OUT_OF_MEMORY),
-							 errmsg("out of memory")));
+							 errmsg("dynahash: out of memory"),
+							 errbacktrace()));
 			}
 
 			/* link into hashbucket chain */

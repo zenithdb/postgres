@@ -115,7 +115,8 @@ shm_toc_allocate(shm_toc *toc, Size nbytes)
 		SpinLockRelease(&toc->toc_mutex);
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
-				 errmsg("out of shared memory")));
+				 errmsg("toc: out of shared memory"),
+				 errbacktrace()));
 	}
 	vtoc->toc_allocated_bytes += nbytes;
 
@@ -197,7 +198,8 @@ shm_toc_insert(shm_toc *toc, uint64 key, void *address)
 		SpinLockRelease(&toc->toc_mutex);
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
-				 errmsg("out of shared memory")));
+				 errmsg("toc: out of shared memory"),
+				 errbacktrace()));
 	}
 
 	Assert(offset < total_bytes);
