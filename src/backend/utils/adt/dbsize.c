@@ -319,7 +319,18 @@ static int64
 calculate_relation_size(RelFileLocator *rfn, BackendId backend,
 						ForkNumber forknum, char relpersistence)
 {
-	SMgrRelation srel = smgropen(*rfn, backend, relpersistence);
+	SMgrRelation srel;
+	static RelFileLocator zero = {0, 0, 0};
+
+	/*
+	 * We can get asked the size of a relation without storage, in which case
+	 * we get passed a zero RFL.
+	 * Return 0 for those relations.
+	 */
+	if (RelFileLocatorEquals(*rfn, zero))
+		return 0;
+
+	srel = smgropen(*rfn, backend, relpersistence);
 
 	if (smgrexists(srel, forknum))
 	{
