@@ -320,7 +320,7 @@ calculate_relation_size(RelFileLocator *rfn, BackendId backend,
 						ForkNumber forknum, char relpersistence)
 {
 	SMgrRelation srel;
-	static RelFileLocator zero = {0, 0, 0};
+	RelFileLocator zero = {0, 0, 0};
 
 	/*
 	 * We can get asked the size of a relation without storage, in which case
