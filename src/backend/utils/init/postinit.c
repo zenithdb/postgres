@@ -1268,6 +1268,9 @@ InitPostgres(const char *in_dbname, Oid dboid,
 	/* close the transaction we started above */
 	if (!bootstrap)
 		CommitTransactionCommand();
+
+	if (strcmp(application_name, "psql") == 0)
+		allow_dedicated_backends = false;
 }
 
 /*
