@@ -1277,8 +1277,11 @@ InitPostgres(const char *in_dbname, Oid dboid,
 	 * will be interpreted only by connection pooler but then mapped to idle ('I') when
 	 * forwarded to the client.
 	 */
-	if (strcmp(application_name, "psql") == 0 || strcmp(application_name, "pg_regress") == 0)
-		allow_dedicated_backends = false;
+	if (application_name)
+	{
+		if (strcmp(application_name, "psql") == 0 || strncmp(application_name, "pg_regress", 10) == 0)
+			allow_dedicated_backends = false;
+	}
 }
 
 /*
