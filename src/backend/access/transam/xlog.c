@@ -8066,7 +8066,9 @@ PreCheckPointGuts(int flags)
 	{
 		CheckPointReplicationState(flags);
 		/*
-		 * pgstat_write_statsfile also persists information using AUX mechanism so do it here to avoid panic
+		 * pgstat_write_statsfile will be called later by before_shmem_exit() hook, but by then it's too late
+		 * to write WAL records. In Neon, pgstat_write_statsfile() writes the pgstats file to the WAL, so we have
+		 * to call it earlier. (The call that happens later is a useless, but it doesn't do any harm either)  
 		 */
 		pgstat_write_statsfile();
 	}
